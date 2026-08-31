@@ -1,4 +1,6 @@
 services:
+  # Ruteador sobre Chile completo. Incluye la red vial argentina fronteriza,
+  # asi que rutea Punta Arenas desde el norte pasando por Argentina.
   osrm:
     image: osrm/osrm-backend
     command: osrm-routed --algorithm mld --max-table-size 10000 /data/chile-latest.osrm
@@ -7,12 +9,21 @@ services:
     ports:
       - "5000:5000"
 
+  # Mismo ruteador sobre el extracto recortado al poligono nacional. Un par con
+  # ruta en `osrm` y sin ruta aca es, por construccion, `solo_via_argentina`.
+  osrm_cl:
+    image: osrm/osrm-backend
+    command: osrm-routed --algorithm mld --max-table-size 10000 /data/chile-recortado.osrm
+    volumes:
+      - ./datos/osrm_cl:/data
+    ports:
+      - "5001:5000"
+
   geo:
-    build: ./sonda
+    build: .
     volumes:
       - .:/work
     working_dir: /work
     environment:
       OSRM_URL: http://osrm:5000
-    depends_on:
-      - osrm
+      OSRM_CL_URL: http://osrm_cl:5000
