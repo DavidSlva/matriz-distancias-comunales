@@ -1,0 +1,18 @@
+services:
+  osrm:
+    image: osrm/osrm-backend
+    command: osrm-routed --algorithm mld --max-table-size 10000 /data/chile-latest.osrm
+    volumes:
+      - ./datos/osrm:/data
+    ports:
+      - "5000:5000"
+
+  geo:
+    build: ./sonda
+    volumes:
+      - .:/work
+    working_dir: /work
+    environment:
+      OSRM_URL: http://osrm:5000
+    depends_on:
+      - osrm
