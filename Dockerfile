@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir \
       rasterio==1.4.3 \
       pandas==2.3.3 \
       pyarrow==21.0.0 \
-      requests==2.32.5
+      requests==2.32.5 \
+      pyyaml==6.0.2
 
 WORKDIR /work

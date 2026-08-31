@@ -1,0 +1,43 @@
+# Fuentes publicas del dataset. `src/01_descargar.py` las baja y verifica el md5.
+#
+# Los archivos crudos no se versionan (453 MB): este manifiesto es el que permite
+# reconstruirlos byte a byte.
+#
+# Las tres fuentes exigen `User-Agent`. Sin el, BCN responde 401 y Geofabrik corta
+# la conexion sin mensaje.
+
+fuentes:
+  - nombre: comunas
+    descripcion: Poligonos de las comunas de Chile, division politico administrativa
+    url: https://www.bcn.cl/obtienearchivo?id=repositorio/10221/10396/5/comunas_final.zip
+    archivo: comunas_final.zip
+    descomprimir_en: comunas
+    md5: null   # BCN republica sin versionar; se registra el md5 de la primera bajada
+    atribucion: Biblioteca del Congreso Nacional de Chile
+    licencia: uso libre con atribucion
+
+  - nombre: areas_pobladas
+    descripcion: Poligonos de localidades y areas pobladas
+    url: https://www.bcn.cl/obtienearchivo?id=repositorio/10221/10405/2/Areas_Pobladas.zip
+    archivo: Areas_Pobladas.zip
+    descomprimir_en: areas_pobladas
+    md5: null
+    atribucion: Biblioteca del Congreso Nacional de Chile
+    licencia: uso libre con atribucion
+
+  - nombre: osm
+    descripcion: Extracto de OpenStreetMap para Chile, insumo de los grafos de ruteo
+    url: https://download.geofabrik.de/south-america/chile-latest.osm.pbf
+    archivo: chile-latest.osm.pbf
+    md5_url: https://download.geofabrik.de/south-america/chile-latest.osm.pbf.md5
+    md5: 6ba274aae78ea1d279a06a9a194e7649   # corte del 2026-08-31
+    atribucion: (c) colaboradores de OpenStreetMap
+    licencia: ODbL 1.0
+
+  - nombre: poblacion
+    descripcion: Grilla de poblacion 2020, version constrained (solo donde hay edificacion)
+    url: https://data.worldpop.org/GIS/Population/Global_2000_2020_Constrained/2020/BSGM/CHL/chl_ppp_2020_UNadj_constrained.tif
+    archivo: chl_pop_2020.tif
+    md5: null
+    atribucion: WorldPop (www.worldpop.org)
+    licencia: CC-BY 4.0
