@@ -1,7 +1,7 @@
 RAIZ := $(shell pwd)
 GEO   := docker compose run --rm geo python
 
-.PHONY: all descargar grafos centroides distancias intracomuna ensamblar validar limpiar
+.PHONY: all descargar grafos centroides distancias intracomuna ensamblar validar enlaces limpiar
 
 all: descargar grafos centroides intracomuna distancias ensamblar validar
 
@@ -38,6 +38,10 @@ ensamblar:
 
 validar:
 	$(GEO) src/validar.py
+
+## Los enlaces institucionales chilenos se mueven. Ya se publico un 404 una vez.
+enlaces:
+	$(GEO) src/verificar_enlaces.py
 
 limpiar:
 	docker compose down

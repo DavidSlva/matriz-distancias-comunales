@@ -14,10 +14,37 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import requests
+from pyproj import Geod
 
+GEOD = Geod(ellps="WGS84")
 OSRM = os.environ.get("OSRM_URL", "http://osrm:5000")
 SALIDA = "datos/salida"
 CRUDO = "datos/crudo/puntos_osm.geojson"
+
+
+def subtipo(row):
+    """Distingue lo que sirve para carga de lo que no.
+
+    Sin esto el layer mete en la misma bolsa el Puerto de Valparaiso y el Club de
+    Yates de Antofagasta. Se deriva de etiquetas de OSM, no de criterio propio.
+    """
+    t = row["tipo"]
+    if t == "aeropuerto":
+        if pd.notna(row.get("iata")):
+            return "con_codigo_iata"          # aeropuerto comercial
+        if pd.notna(row.get("icao")):
+            return "aerodromo_registrado"     # tiene codigo OACI
+        return "pista"
+    if t == "puerto":
+        ind = row.get("industrial")
+        if ind == "port":
+            return "portuario_industrial"
+        if ind == "shipyard":
+            return "astillero"
+        if row.get("seamark:type") == "harbour":
+            return "fondeadero"
+        return "instalacion_menor"            # clubes de yates, caletas
+    return t
 
 
 def clasificar(row):
@@ -67,26 +94,47 @@ def main():
     j["nombre"] = nombre if nombre is not None else None
     j = j[j["nombre"].notna()]
 
+    for col in ("iata", "icao", "industrial", "seamark:type", "operator"):
+        if col not in j.columns:
+            j[col] = None
+    j["subtipo"] = j.apply(subtipo, axis=1)
+
     j["lon"] = j.geometry.x
     j["lat"] = j.geometry.y
     j["fuente_geo"] = "openstreetmap"
-    j["verificado"] = False
     j["snap_m"] = [enganche_m(x, y) for x, y in zip(j["lon"], j["lat"])]
 
     out = (
-        j[["nombre", "tipo", "cod_comuna", "nombre_comuna", "lon", "lat",
-           "fuente_geo", "verificado", "snap_m"]]
+        j[["nombre", "tipo", "subtipo", "cod_comuna", "nombre_comuna", "lon", "lat",
+           "iata", "icao", "operator", "fuente_geo", "snap_m"]]
+        .rename(columns={"operator": "operador"})
         .drop_duplicates(subset=["nombre", "tipo", "cod_comuna"])
         .sort_values(["tipo", "cod_comuna", "nombre"])
         .reset_index(drop=True)
     )
     out.insert(0, "id_punto", range(1, len(out) + 1))
+
+    # Un mismo terminal suele estar mapeado mas de una vez, como nodo y como area, con
+    # nombres apenas distintos. Se marca en vez de borrarse: cual de los dos sobra es
+    # criterio, y el criterio se deja a quien use el dato.
+    out["posible_duplicado"] = False
+    for _, g in out.groupby("tipo"):
+        idx = list(g.index)
+        for a in range(len(idx)):
+            for b in range(a + 1, len(idx)):
+                i, k = idx[a], idx[b]
+                d = GEOD.inv(out.at[i, "lon"], out.at[i, "lat"],
+                             out.at[k, "lon"], out.at[k, "lat"])[2]
+                if d < 500:
+                    out.loc[[i, k], "posible_duplicado"] = True
     out.to_parquet(f"{SALIDA}/puntos_logisticos.parquet", index=False)
 
     print(f"puntos: {len(out)}")
-    print(out.groupby("tipo").size().to_string())
+    print(out.groupby(["tipo", "subtipo"]).size().to_string())
     print(f"\ncomunas con al menos un punto: {out['cod_comuna'].nunique()}")
     print(f"puntos a mas de 2 km de un camino: {(out['snap_m'] > 2000).sum()}")
+    print(f"posibles duplicados (a menos de 500 m de otro del mismo tipo): "
+          f"{out['posible_duplicado'].sum()}")
 
 
 if __name__ == "__main__":

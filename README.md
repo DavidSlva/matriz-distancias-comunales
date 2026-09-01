@@ -71,7 +71,7 @@ distancias = pd.read_parquet(f"{base}/distancias_comuna_comuna.parquet")
 | `comunas` | 346 | atributos, las 4 definiciones de centroide y calidad |
 | `intracomuna` | 345 | (A) y (B) por comuna, con percentiles |
 | `distancias_comuna_comuna` | 119.025 | matriz dirigida 345 x 345 |
-| `puntos_logisticos` | 451 | puertos, aeropuertos y pasos fronterizos desde OSM |
+| `puntos_logisticos` | 451 | puertos, aeropuertos y pasos fronterizos desde OSM, con subtipo |
 | `distancias_comuna_punto` | 155.595 | matriz 345 x 451 |
 
 Cada una en Parquet y CSV, en `datos/salida/`.
@@ -140,7 +140,8 @@ O `make all`.
 ## Limitaciones declaradas
 
 - **Cubre 345 de las 346 comunas oficiales.** El shapefile de BCN no incluye la comuna
-  Antartica (12202).
+  Antartica (12202), y no se le busco sustituto: OpenStreetMap no tiene red vial al sur
+  del paralelo 60, asi que la fila seria toda nula.
 - **Solo red vial.** No modela transporte maritimo ni ferroviario. El perfil de ruteo si
   incluye transbordos, que en Chile son parte real del transporte carretero de carga
   (Chiloe, Carretera Austral).

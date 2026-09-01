@@ -12,7 +12,10 @@ fuentes:
     url: https://www.bcn.cl/obtienearchivo?id=repositorio/10221/10396/5/comunas_final.zip
     archivo: comunas_final.zip
     descomprimir_en: comunas
-    md5: null   # BCN republica sin versionar; se registra el md5 de la primera bajada
+    # BCN republica sin versionar. Este es el md5 observado el 2026-08-31: si cambia,
+    # la descarga falla a proposito, para que nadie reconstruya sobre otro insumo sin
+    # enterarse.
+    md5: d297e9b14da09408d2698492fbab0dcc
     atribucion: Biblioteca del Congreso Nacional de Chile
     licencia: uso libre con atribucion
 
@@ -21,7 +24,7 @@ fuentes:
     url: https://www.bcn.cl/obtienearchivo?id=repositorio/10221/10405/2/Areas_Pobladas.zip
     archivo: Areas_Pobladas.zip
     descomprimir_en: areas_pobladas
-    md5: null
+    md5: 9853fb797641c99d388a2b1dfe0aaaa9   # observado el 2026-08-31
     atribucion: Biblioteca del Congreso Nacional de Chile
     licencia: uso libre con atribucion
 
@@ -38,6 +41,6 @@ fuentes:
     descripcion: Grilla de poblacion 2020, version constrained (solo donde hay edificacion)
     url: https://data.worldpop.org/GIS/Population/Global_2000_2020_Constrained/2020/BSGM/CHL/chl_ppp_2020_UNadj_constrained.tif
     archivo: chl_pop_2020.tif
-    md5: null
+    md5: 72fe8780ea9ecf1e6da91007f346a6f4   # observado el 2026-08-31
     atribucion: WorldPop (www.worldpop.org)
     licencia: CC-BY 4.0
