@@ -14,7 +14,9 @@ construccion, pero un viaje que nace y muere dentro de la misma comuna no. Este 
 publica dos cantidades distintas para eso:
 
 - **(A) viaje interno**: mediana de la distancia ruteada entre pares de puntos sorteados
-  dentro de la comuna, con probabilidad proporcional a la poblacion.
+  dentro de la comuna, con probabilidad proporcional a la poblacion. Modela un viaje
+  **entre dos residentes al azar**; otros casos, como el despacho desde comercio, tienen
+  otra distribucion de origen y dan un numero menor.
 - **(B) tramo de acceso**: del centroide a los puntos donde la red vial cruza el borde
   comunal. Es la primera y ultima milla de un viaje intercomunal.
 
@@ -99,7 +101,7 @@ Cada una en Parquet y CSV, en `datos/salida/`.
 
 | columna | descripcion |
 |---|---|
-| `a_p25`, `a_p50`, `a_p75`, `a_p95` | **(A)** viaje interno, en km |
+| `a_p25`, `a_p50`, `a_p75`, `a_p95` | **(A)** viaje interno entre dos residentes al azar, en km |
 | `a_n_pares` | pares efectivamente ruteados |
 | `a_pct_descartado` | fraccion de la muestra descartada por enganche excesivo |
 | `b_min`, `b_p50`, `b_max` | **(B)** tramo de acceso, en km |
@@ -144,6 +146,9 @@ O `make all`.
   (Chiloe, Carretera Austral).
 - **Los minutos son de flujo libre.** Sin trafico, sin estacionalidad, sin restricciones
   vehiculares.
+- **(A) modela un caso, no todos.** Origen y destino se sortean de la poblacion, o sea
+  un viaje entre dos residentes. Un despacho a domicilio sale de un local, no de un
+  hogar, y su ultimo kilometro es **menor** que este `a_p50`.
 - **Un centroide es un punto, y una comuna no lo es.** La columna `snap_m` expone cuanto
   se aleja el punto de la red vial: 21 comunas superan los 2 km y conviene filtrarlas
   segun el uso.

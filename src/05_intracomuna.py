@@ -2,8 +2,16 @@
 
 (A) Viaje interno. Impedancia intrazonal: distancia ruteada entre pares de puntos
     sorteados dentro de la comuna con probabilidad proporcional a la poblacion.
-    No se usa formula cerrada de area: `(2/3)*sqrt(A/pi)` se equivoca por 54x en
-    Natales, donde 51.382 km2 tienen toda su poblacion en un solo pueblo.
+
+    ORIGEN Y DESTINO SALEN DE LA MISMA DISTRIBUCION, la poblacion, asi que (A)
+    modela un viaje entre dos residentes al azar. No es "la distancia intracomunal"
+    en abstracto: la distribucion de origen define el caso. Un despacho a domicilio
+    sale de un local, no de un hogar, y su ultimo kilometro es MENOR que este (A),
+    porque el comercio se ubica donde esta la gente. Para modelar ese caso lo unico
+    que hay que cambiar es de donde se sortea `o`.
+
+    No se usa formula cerrada de area: `(2/3)*sqrt(A/pi)` se equivoca por 145x en
+    Tortel, donde 19.574 km2 tienen toda su poblacion en un solo pueblo.
 
 (B) Tramo de acceso. Del centroide canonico a los puntos donde la red vial cruza
     el borde comunal. Es la primera y ultima milla de un viaje intercomunal, no un
