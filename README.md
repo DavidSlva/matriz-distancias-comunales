@@ -1,8 +1,8 @@
 # Matriz de distancias entre comunas de Chile
 
 Distancias viales entre las comunas de Chile, calculadas con ruteo real sobre
-OpenStreetMap, **incluyendo las dos formas de distancia intracomunal** que no existen
-en ninguna otra fuente publica.
+OpenStreetMap, **incluyendo dos formas de distancia intracomunal**: el viaje interno y
+el tramo de acceso al borde comunal.
 
 Todo el pipeline es reproducible desde cero con `make all` y tres fuentes publicas.
 No usa ninguna API comercial.
