@@ -37,6 +37,31 @@ centroide geometrico de Antofagasta cae en pleno desierto, a 124 km de la ciudad
 canonico de este dataset es el **ponderado por poblacion**; los otros tres van como
 columnas de contraste.
 
+## Descargar
+
+Los datos se publican como
+[GitHub Release](https://github.com/DavidSlva/matriz-distancias-comunales/releases/latest),
+no en el arbol del repositorio. Cada tabla viene en CSV y en Parquet.
+
+```bash
+# una tabla suelta
+curl -LO https://github.com/DavidSlva/matriz-distancias-comunales/releases/latest/download/intracomuna.csv
+
+# todas
+gh release download --repo DavidSlva/matriz-distancias-comunales
+```
+
+Leerlas desde Python, sin descargar nada a mano:
+
+```python
+import pandas as pd
+
+base = "https://github.com/DavidSlva/matriz-distancias-comunales/releases/latest/download"
+intra    = pd.read_parquet(f"{base}/intracomuna.parquet")
+comunas  = pd.read_parquet(f"{base}/comunas.parquet")
+distancias = pd.read_parquet(f"{base}/distancias_comuna_comuna.parquet")
+```
+
 ## Tablas
 
 | tabla | filas | que es |
