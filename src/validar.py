@@ -52,7 +52,7 @@ def main():
         con_ruta = fuera[fuera["ruta_existe"] & (fuera["km_geodesica"] > 1)]
         # Invariante fisico, no estadistico: ninguna ruta por carretera puede ser mas
         # corta que la geodesica entre los mismos dos puntos. Cuando se viola, OSRM
-        # engancho el punto lejos del que se pidio (ver notas/2026-08-31-osrm-engancha).
+        # engancho el punto lejos del que se pidio (ver notas/enganche-a-la-red-vial.md).
         check("factor de rodeo >= 1 en TODOS los pares con ruta",
               (con_ruta["factor_rodeo"] >= 1.0).all(),
               f"minimo {con_ruta['factor_rodeo'].min():.4f}")
