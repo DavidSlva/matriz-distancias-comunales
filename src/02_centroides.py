@@ -8,6 +8,7 @@ la etapa de grafos usa para recortar el extracto de OpenStreetMap.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import os
 
@@ -120,6 +121,18 @@ def main():
 
             area_m2, _ = GEOD.geometry_area_perimeter(g)
 
+            # Cuanto se separan entre si las cuatro definiciones. Es la medida de cuan
+            # mal representa un punto unico a esta comuna: 0,05 km en las urbanas,
+            # 200,78 km en Natales. Se publica como columna porque es un indicador de
+            # calidad por fila, no un dato de contexto.
+            candidatos = {"pob": c_pob, "geom": c_geom, "sup": c_sup, "urb": c_urb}
+            candidatos = {k: v for k, v in candidatos.items() if v is not None}
+            pares = [
+                GEOD.inv(a.x, a.y, b.x, b.y)[2] / 1000
+                for a, b in itertools.combinations(candidatos.values(), 2)
+            ]
+            dispersion = max(pares) if pares else np.nan
+
             filas.append(
                 dict(
                     cod_comuna=int(row["cod_comuna"]),
@@ -145,6 +158,7 @@ def main():
                     canonico_lat=canonico.y,
                     origen_canonico=origen_canonico,
                     canonico_dentro=bool(g.contains(canonico)),
+                    dispersion_centroides_km=dispersion,
                     snap_m=enganche_m(canonico),
                 )
             )
@@ -159,6 +173,8 @@ def main():
     print(f"centroide canonico fuera del poligono: {(~df['canonico_dentro']).sum()}")
     print(f"poblacion total: {df['poblacion_2020'].sum():,.0f}")
     print(f"area total: {df['area_km2'].sum():,.0f} km2")
+    print("\nseparacion maxima entre las cuatro definiciones (dispersion_centroides_km):")
+    print(df["dispersion_centroides_km"].describe(percentiles=[0.5, 0.9]).round(2).to_string())
     print("\nenganche a la red vial (snap_m):")
     print(df["snap_m"].describe(percentiles=[0.5, 0.9, 0.99]).round(1).to_string())
     print(f"\ncomunas con snap_m > 2000 m: {(df['snap_m'] > 2000).sum()}")

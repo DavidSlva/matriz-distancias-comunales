@@ -4,7 +4,7 @@ Distancias viales entre las comunas de Chile, calculadas con ruteo real sobre
 OpenStreetMap, **incluyendo las dos formas de distancia intracomunal** que no existen
 en ninguna otra fuente publica.
 
-Todo el pipeline es reproducible desde cero con `make all` y cuatro fuentes publicas.
+Todo el pipeline es reproducible desde cero con `make all` y tres fuentes publicas.
 No usa ninguna API comercial.
 
 ## Que tiene de distinto
@@ -90,6 +90,7 @@ Cada una en Parquet y CSV, en `datos/salida/`.
 | `canonico_lon/lat` | el punto efectivamente usado para rutear |
 | `origen_canonico` | de cual definicion salio el canonico |
 | `canonico_dentro` | si el canonico cae dentro del poligono. Falso en 11 comunas costeras y de archipielago |
+| `dispersion_centroides_km` | separacion maxima entre las cuatro definiciones de centroide. **Indicador de calidad**: mediana 10,73 km, p90 40,28 |
 | `snap_m` | distancia del canonico al camino mas cercano. **Indicador de calidad** |
 | `componente_vial` | componente conexa del grafo vial nacional |
 | `n_salidas_viales` | puntos del borde comunal que estan sobre la red |
@@ -123,7 +124,7 @@ Cada una en Parquet y CSV, en `datos/salida/`.
 Requiere Docker. Ocupa unos 5 GB entre insumos y grafos.
 
 ```bash
-make descargar     # baja las 4 fuentes y verifica md5
+make descargar     # baja los 4 archivos de las 3 fuentes y verifica md5
 make centroides    # produce comunas + el poligono para recortar
 make grafos        # construye los dos grafos OSRM (lento: decenas de minutos)
 make intracomuna
