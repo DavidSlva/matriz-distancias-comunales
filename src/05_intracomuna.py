@@ -10,7 +10,7 @@
     porque el comercio se ubica donde esta la gente. Para modelar ese caso lo unico
     que hay que cambiar es de donde se sortea `o`.
 
-    No se usa formula cerrada de area: `(2/3)*sqrt(A/pi)` se equivoca por 145x en
+    No se usa formula cerrada de area: `(2/3)*sqrt(A/pi)` se equivoca por 141x en
     Tortel, donde 19.574 km2 tienen toda su poblacion en un solo pueblo.
 
 (B) Tramo de acceso. Del centroide canonico a los puntos donde la red vial cruza
@@ -35,7 +35,14 @@ OSRM = os.environ.get("OSRM_URL", "http://osrm:5000")
 SALIDA = "datos/salida"
 RNG = np.random.default_rng(20260831)
 
-N_MUESTRA = 150   # puntos por lado del Monte Carlo -> hasta 22.500 pares por comuna
+# Punto de partida del Monte Carlo. El muestreo es ADAPTATIVO: el ruido de (A) no lo
+# predice el tamano de la comuna sino cuanto descarta el filtro de enganche, porque eso
+# es lo que determina la muestra efectiva. Con 150 fijo, una comuna que descarta el 84%
+# queda con 3.600 pares utiles en vez de 22.500, y el CV de la mediana entre replicas
+# sube de 1% a 15%. Ver `src/analisis_parametros.py`.
+N_MUESTRA = 150
+N_MAX = 400       # tope; sobre esto la consulta se vuelve pesada sin ganar precision
+PARES_OBJETIVO = 20000
 N_BORDE = 240     # puntos muestreados sobre el borde comunal
 SNAP_MAX = 2000   # m; sobre esto el punto no representa un origen vial creible
 RADIO_M = 30000   # tope de enganche del centroide; ver 04_distancias.py
@@ -109,14 +116,32 @@ def main():
                 g = g.union_all() if hasattr(g, "union_all") else g.iloc[0]
             reg = dict(cod_comuna=cod)
 
-            # ---- (A) viaje interno
-            o = sortear(g, src, N_MUESTRA)
-            d = sortear(g, src, N_MUESTRA)
+            # ---- (A) viaje interno, con muestreo adaptativo
+            n_muestra = N_MUESTRA
+            o = sortear(g, src, n_muestra)
+            d = sortear(g, src, n_muestra)
+            m_ok = np.empty((0, 0))
             if o and d:
                 m, so, sd = tabla(o, d)
                 m_ok = m[np.ix_(so <= SNAP_MAX, sd <= SNAP_MAX)]
                 v = m_ok[np.isfinite(m_ok) & (m_ok > 0)]
+
+                # Si el descarte dejo pocos pares utiles, se reintenta una vez con la
+                # muestra que haria falta. Un solo reintento basta: el descarte
+                # observado estima bien el que se vera con mas puntos.
+                if 0 < v.size < PARES_OBJETIVO:
+                    n_muestra = min(
+                        N_MAX, int(np.ceil(N_MUESTRA * np.sqrt(PARES_OBJETIVO / v.size)))
+                    )
+                    if n_muestra > N_MUESTRA:
+                        o = sortear(g, src, n_muestra)
+                        d = sortear(g, src, n_muestra)
+                        m, so, sd = tabla(o, d)
+                        m_ok = m[np.ix_(so <= SNAP_MAX, sd <= SNAP_MAX)]
+                        v = m_ok[np.isfinite(m_ok) & (m_ok > 0)]
+
                 reg.update(
+                    a_n_muestra=n_muestra,
                     a_n_pares=int(v.size),
                     a_pct_descartado=float(1 - m_ok.size / m.size) if m.size else np.nan,
                     **{
@@ -125,7 +150,7 @@ def main():
                     },
                 )
             else:
-                reg.update(a_n_pares=0, a_pct_descartado=np.nan,
+                reg.update(a_n_muestra=n_muestra, a_n_pares=0, a_pct_descartado=np.nan,
                            **{f"a_p{q}": np.nan for q in (25, 50, 75, 95)})
 
             # ---- (B) tramo de acceso

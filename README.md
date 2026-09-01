@@ -20,12 +20,12 @@ publica dos cantidades distintas para eso:
 - **(B) tramo de acceso**: del centroide a los puntos donde la red vial cruza el borde
   comunal. Es la primera y ultima milla de un viaje intercomunal.
 
-Son cantidades diferentes: la razon B/A tiene mediana 2,87 y llega a 206 en Tortel.
+Son cantidades diferentes: la razon B/A tiene mediana 2,87 y llega a 200 en Tortel.
 
 **2. No usa formulas cerradas de area.** La formula clasica de impedancia intrazonal,
 `(2/3)*sqrt(A/pi)`, asume actividad homogenea sobre la comuna. En Chile eso falla
 espectacularmente: Tortel tiene 19.574 km2 con toda su poblacion en un pueblo, y la
-formula predice 52,6 km donde lo medido es 0,36 km. **Error de 145x.** La columna
+formula predice 52,6 km donde lo medido es 0,37 km. **Error de 141x.** La columna
 `radio_equivalente_km` esta incluida a proposito, para que el error sea visible.
 
 **3. Distingue "lejos" de "inalcanzable".** El grafo vial de Chile tiene 9 componentes
@@ -102,6 +102,7 @@ Cada una en Parquet y CSV, en `datos/salida/`.
 | columna | descripcion |
 |---|---|
 | `a_p25`, `a_p50`, `a_p75`, `a_p95` | **(A)** viaje interno entre dos residentes al azar, en km |
+| `a_n_muestra` | puntos por lado del Monte Carlo en esta comuna. 150 salvo donde el descarte obligo a subirlo; 29 comunas superan ese valor |
 | `a_n_pares` | pares efectivamente ruteados |
 | `a_pct_descartado` | fraccion de la muestra descartada por enganche excesivo |
 | `b_min`, `b_p50`, `b_max` | **(B)** tramo de acceso, en km |
