@@ -28,10 +28,16 @@ espectacularmente: Tortel tiene 19.574 km2 con toda su poblacion en un pueblo, y
 formula predice 52,6 km donde lo medido es 0,37 km. **Error de 141x.** La columna
 `radio_equivalente_km` esta incluida a proposito, para que el error sea visible.
 
-**3. Distingue "lejos" de "inalcanzable".** El grafo vial de Chile tiene 9 componentes
-conexas. A Magallanes no se llega por tierra sin pasar por Argentina. El dataset marca
-eso con `solo_via_argentina`, calculado con dos grafos: uno de Chile completo y otro
-recortado al poligono nacional.
+**3. Separa el camino del transbordo.** Una quinta parte de los pares del pais solo se
+conecta navegando: la Carretera Austral, Chiloe y Magallanes dependen de barcazas que
+embarcan camiones. La columna `km_transbordo` dice cuantos de los kilometros van sobre
+agua, con su horario, su cupo y su tarifa.
+
+**5. Mide la dependencia de Argentina contra un grafo que la contiene.** El ruteo se hace
+dos veces: sobre Chile mas Argentina y sobre Chile solo. El resultado es que
+**ningun par comunal depende de Argentina**: `solo_via_argentina` es cero en los 119.025
+pares. Cruzar acorta el camino en 5.252 de ellos, con mediana de 165,5 km, y esa
+diferencia se publica en `dif_km_via_argentina`.
 
 **4. Publica cuatro definiciones de centroide, no una.** "El centroide de la comuna" es
 al menos cuatro objetos distintos y en Chile difieren hasta **201 km** (Natales). El
@@ -115,12 +121,15 @@ Cada una en Parquet y CSV, en `datos/salida/`.
 |---|---|
 | `cod_origen` | comuna de origen |
 | `cod_destino` / `id_punto` | destino |
-| `km_ruta` | distancia por carretera |
+| `km_ruta` | distancia de la ruta **nacional**, sin salir de Chile |
 | `minutos` | tiempo de viaje a **flujo libre**. No modela trafico |
+| `km_transbordo` | cuantos de esos kilometros van en transbordador |
 | `km_geodesica` | linea recta sobre el elipsoide entre los mismos dos puntos |
-| `factor_rodeo` | `km_ruta / km_geodesica`. Mediana nacional 1,248 |
-| `ruta_existe` | falso cuando no hay camino ni pasando por Argentina |
-| `solo_via_argentina` | verdadero cuando hay ruta en el grafo completo y no en el recortado |
+| `factor_rodeo` | `km_ruta / km_geodesica`. Mediana nacional 1,260 |
+| `ruta_existe` | falso cuando no hay ruta **nacional** |
+| `km_via_argentina` | la ruta mas rapida permitiendo cruzar la frontera |
+| `solo_via_argentina` | verdadero cuando solo existe la internacional |
+| `dif_km_via_argentina` | `km_ruta` menos `km_via_argentina`. Puede ser negativa: la ruta internacional a veces es mas larga pero mas rapida, porque evita el ferry |
 
 ## Como reproducirlo
 
@@ -143,9 +152,10 @@ O `make all`.
 - **Cubre 345 de las 346 comunas oficiales.** El shapefile de BCN no incluye la comuna
   Antartica (12202), y no se le busco sustituto: OpenStreetMap no tiene red vial al sur
   del paralelo 60, asi que la fila seria toda nula.
-- **Solo red vial.** No modela transporte maritimo ni ferroviario. El perfil de ruteo si
-  incluye transbordos, que en Chile son parte real del transporte carretero de carga
-  (Chiloe, Carretera Austral).
+- **Solo red vial.** No modela transporte maritimo de contenedores ni ferroviario. Si
+  incluye los **transbordadores que embarcan camiones**, que en Chile son parte del
+  transporte carretero de carga, y sus kilometros salen del trazado navegado real, no de
+  una linea recta: la mediana de sinuosidad de esos trazados es 1,09 y llega a 2,28.
 - **Los minutos son de flujo libre**: el tiempo de camino vacio, sin congestion ni colas.
   El real siempre es mayor.
 - **En rutas con transbordo el tiempo no es utilizable.** Solo 64 de las 844 vias de

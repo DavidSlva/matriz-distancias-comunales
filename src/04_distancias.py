@@ -1,8 +1,21 @@
 """Etapa 04: matriz de distancias entre las comunas.
 
-Rutea cada par contra dos grafos: Chile completo y Chile recortado al poligono
-nacional. La diferencia entre ambos identifica los pares a los que solo se llega
-por tierra saliendo del pais.
+Rutea cada par contra dos grafos: uno que **incluye Argentina** y otro recortado al
+territorio nacional. La diferencia entre ambos responde dos preguntas distintas: que
+pares solo se alcanzan saliendo del pais, y cuanto cambia la distancia si se permite
+cruzar.
+
+**OSRM devuelve la ruta mas rapida, no la mas corta.** Eso importa aca: como el perfil
+penaliza el transbordador a 5 km/h, en el grafo internacional el ruteador prefiere
+rodear por camino argentino antes que navegar, aunque sean mas kilometros. Puerto Montt
+a Punta Arenas da 2.100,8 km por Chile y 2.172,8 permitiendo Argentina: la internacional
+es mas LARGA en distancia porque es mas rapida en tiempo. Por eso la columna se llama
+`dif_km_via_argentina` y no "ahorro": puede ser negativa, y su signo depende de una
+velocidad de ferry que sabemos mal medida.
+
+Publica ademas `km_transbordo`: cuantos kilometros de la ruta nacional van en
+transbordador. Para carga eso no es un detalle del trazado sino otra operacion, con
+horario, cupo y tarifa.
 
 La diagonal sale 0 por construccion (el centroide contra si mismo). La distancia
 intracomunal real vive en `intracomuna.parquet`, que es otra pregunta.
@@ -24,22 +37,24 @@ SALIDA = "datos/salida"
 
 # Radio maximo de enganche a la red vial, en metros.
 #
-# Sin este limite OSRM engancha arbitrariamente lejos: al elegir el punto de
-# enganche prefiere la componente conexa grande antes que devolver "sin ruta".
-# Con eso, Juan Fernandez enganchaba a "Acceso a Caleta Loanco", en el Maule, a
-# 670 km, y la isla aparecia conectada por tierra con el continente.
-# Con radio, esa misma consulta responde NoRoute, que es la verdad.
+# Sin este limite OSRM engancha arbitrariamente lejos: al elegir el punto de enganche
+# prefiere la componente conexa grande antes que devolver "sin ruta". Con eso, Juan
+# Fernandez enganchaba a "Acceso a Caleta Loanco", en el Maule, a 670 km, y la isla
+# aparecia conectada por tierra con el continente.
 #
-# 30 km deja pasar las comunas realmente remotas (Cisnes engancha a 25 km) sin
-# permitir el salto entre componentes. La calidad del enganche queda expuesta en
-# la columna `snap_m` de `comunas`.
+# 30 km deja pasar las comunas realmente remotas (Cisnes engancha a 25 km) sin permitir
+# el salto entre componentes. La calidad del enganche queda en `snap_m` de `comunas`.
 #
-# El tope NO se aplica con el parametro `radiuses` de OSRM: basta que UNA
-# coordenada no tenga camino dentro del radio para que el servidor responda
-# 400 NoSegment y bote la consulta entera (pasa con Isla de Pascua y con los
-# puntos del altiplano). Se aplica despues, sobre la distancia de enganche que la
-# propia respuesta devuelve, con el mismo efecto y sin fragilidad.
+# El tope NO se aplica con el parametro `radiuses` de OSRM: basta que UNA coordenada no
+# tenga camino dentro del radio para que el servidor responda 400 NoSegment y bote la
+# consulta entera. Se aplica despues, sobre la distancia de enganche que la propia
+# respuesta devuelve, con el mismo efecto y sin fragilidad.
 RADIO_M = 30000
+
+# Solo puede haber navegacion si algun extremo esta en una region con transbordadores.
+# Entre dos comunas del norte no hay barcaza posible, y pedir la geometria de esos
+# pares seria gastar decenas de miles de consultas para obtener ceros.
+REGIONES_CON_BARCAZA = {10, 11, 12, 14}
 
 
 def tabla(base, puntos, bloque=170):
@@ -75,21 +90,47 @@ def tabla(base, puntos, bloque=170):
         dur[i0:i1] = np.array(
             [[np.nan if v is None else v for v in fila] for fila in j["durations"]]
         )
-        # `destinations` cubre las n coordenadas en cada bloque: basta el primero
         if np.isnan(snap).all():
             snap = np.array([w["distance"] for w in j["destinations"]])
         print(f"    origenes {i0}-{i1} de {n}")
 
-    # una coordenada enganchada mas alla del tope no representa el punto pedido:
-    # su fila y su columna se anulan en lugar de publicar un viaje inventado
     lejos = snap > RADIO_M
     if lejos.any():
-        print(f"    {lejos.sum()} coordenadas enganchadas a mas de {RADIO_M/1000:.0f} km, anuladas")
+        print(f"    {lejos.sum()} coordenadas enganchadas a mas de "
+              f"{RADIO_M / 1000:.0f} km, anuladas")
         dist[lejos, :] = np.nan
         dist[:, lejos] = np.nan
         dur[lejos, :] = np.nan
         dur[:, lejos] = np.nan
     return dist, dur
+
+
+def transbordo_km(base, puntos, pares):
+    """Kilometros de cada ruta que van en transbordador.
+
+    Exige la geometria por par, que el servicio `table` no entrega, asi que se
+    consulta ruta por ruta. Por eso la lista de pares llega ya filtrada.
+    """
+    out = {}
+    for k, (i, j) in enumerate(pares, 1):
+        a, b = puntos[i], puntos[j]
+        try:
+            r = requests.get(
+                f"{base}/route/v1/driving/"
+                f"{a[0]:.6f},{a[1]:.6f};{b[0]:.6f},{b[1]:.6f}",
+                params={"overview": "false", "steps": "true"},
+                timeout=120,
+            ).json()
+            if r.get("code") == "Ok":
+                out[(i, j)] = sum(
+                    p["distance"] for p in r["routes"][0]["legs"][0]["steps"]
+                    if p.get("mode") == "ferry"
+                ) / 1000
+        except requests.RequestException:
+            pass
+        if k % 5000 == 0:
+            print(f"    transbordo {k:,}/{len(pares):,}")
+    return out
 
 
 def componentes(alcanzable):
@@ -118,46 +159,68 @@ def main():
     cods = com["cod_comuna"].to_numpy()
     puntos = list(zip(com["canonico_lon"], com["canonico_lat"]))
     n = len(com)
-    print(f"comunas: {n}   pares: {n*n:,}")
+    print(f"comunas: {n}   pares: {n * n:,}")
 
-    print("\n== grafo Chile completo ==")
-    d_full, t_full = tabla(OSRM, puntos)
-    print("\n== grafo recortado a Chile ==")
-    d_cl, _ = tabla(OSRM_CL, puntos)
+    print("\n== grafo con Argentina ==")
+    d_int, _ = tabla(OSRM, puntos)
+    print("\n== grafo recortado al territorio nacional ==")
+    d_nac, t_nac = tabla(OSRM_CL, puntos)
 
-    # geodesica entre los mismos dos puntos
     lon = np.array([p[0] for p in puntos])
     lat = np.array([p[1] for p in puntos])
     LON1, LON2 = np.meshgrid(lon, lon, indexing="ij")
     LAT1, LAT2 = np.meshgrid(lat, lat, indexing="ij")
     _, _, geo = GEOD.inv(LON1, LAT1, LON2, LAT2)
 
-    existe_full = np.isfinite(d_full)
-    existe_cl = np.isfinite(d_cl)
-    comp = componentes(existe_cl)
-    print(f"\ncomponentes conexas dentro de Chile: {comp.max()+1}")
+    existe_int = np.isfinite(d_int)
+    existe_nac = np.isfinite(d_nac)
+
+    # La conectividad se mide sobre el grafo NACIONAL, que es la pregunta que importa:
+    # que partes de Chile se alcanzan entre si sin salir del pais.
+    comp = componentes(existe_nac)
+    print(f"\ncomponentes conexas dentro de Chile: {comp.max() + 1}")
     for c in range(comp.max() + 1):
         m = comp == c
-        if m.sum() > 3:
+        if m.sum() > 2:
             print(f"  componente {c}: {m.sum()} comunas "
                   f"(regiones {sorted(set(com.loc[m, 'cod_region']))})")
 
+    reg = com["cod_region"].to_numpy()
+    candidatos = [
+        (i, j)
+        for i in range(n)
+        for j in range(n)
+        if i != j and existe_nac[i, j]
+        and (reg[i] in REGIONES_CON_BARCAZA or reg[j] in REGIONES_CON_BARCAZA)
+    ]
+    print(f"\npares que podrian usar transbordador: {len(candidatos):,}")
+    ferry = transbordo_km(OSRM_CL, puntos, candidatos)
+    km_ferry = np.zeros((n, n))
+    for (i, j), v in ferry.items():
+        km_ferry[i, j] = v
+    km_ferry[~existe_nac] = np.nan
+
     O, D = np.meshgrid(cods, cods, indexing="ij")
-    km_ruta = d_full / 1000
+    km_int = d_int / 1000
+    km_nac = d_nac / 1000
     km_geo = geo / 1000
     with np.errstate(divide="ignore", invalid="ignore"):
-        rodeo = np.where(km_geo > 0, km_ruta / km_geo, np.nan)
+        rodeo = np.where(km_geo > 0, km_nac / km_geo, np.nan)
+    dif_int = km_nac - km_int
 
     df = pd.DataFrame(
         {
             "cod_origen": O.ravel(),
             "cod_destino": D.ravel(),
-            "km_ruta": km_ruta.ravel().round(3),
-            "minutos": (t_full / 60).ravel().round(2),
+            "km_ruta": km_nac.ravel().round(3),
+            "minutos": (t_nac / 60).ravel().round(2),
+            "km_transbordo": km_ferry.ravel().round(3),
             "km_geodesica": km_geo.ravel().round(3),
             "factor_rodeo": rodeo.ravel().round(4),
-            "ruta_existe": existe_full.ravel(),
-            "solo_via_argentina": (existe_full & ~existe_cl).ravel(),
+            "ruta_existe": existe_nac.ravel(),
+            "km_via_argentina": km_int.ravel().round(3),
+            "solo_via_argentina": (existe_int & ~existe_nac).ravel(),
+            "dif_km_via_argentina": dif_int.ravel().round(3),
         }
     )
     df.to_parquet(f"{SALIDA}/distancias_comuna_comuna.parquet", index=False)
@@ -169,16 +232,29 @@ def main():
     )
 
     fuera = df[df["cod_origen"] != df["cod_destino"]]
+    con = fuera[fuera["ruta_existe"]]
     print(f"\nfilas: {len(df):,}")
-    print(f"pares sin ruta ni por Argentina: {(~fuera['ruta_existe']).sum():,} "
+    print(f"sin ruta nacional:      {(~fuera['ruta_existe']).sum():,} "
           f"({(~fuera['ruta_existe']).mean():.1%})")
-    print(f"pares solo_via_argentina:        {fuera['solo_via_argentina'].sum():,} "
+    print(f"solo_via_argentina:     {fuera['solo_via_argentina'].sum():,} "
           f"({fuera['solo_via_argentina'].mean():.1%})")
-    print("\nfactor de rodeo (pares con ruta nacional):")
-    nac = fuera[fuera["ruta_existe"] & ~fuera["solo_via_argentina"]]
-    print(nac["factor_rodeo"].describe(percentiles=[0.1, 0.5, 0.9]).round(3).to_string())
-    print("\nkm_ruta:")
-    print(nac["km_ruta"].describe(percentiles=[0.5, 0.95]).round(1).to_string())
+    print(f"con transbordo (>0 km): {(con['km_transbordo'] > 0).sum():,} "
+          f"({(con['km_transbordo'] > 0).mean():.1%} de los que tienen ruta)")
+
+    t = con.loc[con["km_transbordo"] > 0, "km_transbordo"]
+    if len(t):
+        print("\nkm_transbordo en los pares que navegan:")
+        print(t.describe(percentiles=[0.5, 0.9]).round(1).to_string())
+
+    a = con["dif_km_via_argentina"]
+    print(f"\npares donde ir por Argentina acorta mas de 1 km: {(a > 1).sum():,}")
+    if (a > 1).any():
+        print(a[a > 1].describe(percentiles=[0.5, 0.9]).round(1).to_string())
+
+    print("\nfactor de rodeo (ruta nacional):")
+    print(con["factor_rodeo"].describe(percentiles=[0.1, 0.5, 0.9]).round(3).to_string())
+    print("\nkm_ruta (nacional):")
+    print(con["km_ruta"].describe(percentiles=[0.5, 0.95]).round(1).to_string())
 
 
 if __name__ == "__main__":

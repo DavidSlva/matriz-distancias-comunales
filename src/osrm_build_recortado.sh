@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Construye el segundo grafo OSRM, el recortado al poligono nacional.
+# Construye el segundo grafo OSRM, el recortado al territorio nacional.
 #
 # Un par con ruta en el grafo completo y sin ruta en este es, por construccion,
-# `solo_via_argentina`: la unica forma de llegar por tierra es saliendo del pais.
+# `solo_via_argentina`: la unica forma de llegar es saliendo del pais.
+#
+# El poligono lo produce `src/02b_poligono_recorte.py` e INCLUYE LAS AGUAS. Recortar
+# con la union de comunas (tierra) eliminaba las rutas de transbordador y hacia que
+# Puerto Montt a Chaiten, 239,7 km enteramente chilenos, apareciera como accesible
+# solo por Argentina.
 set -euo pipefail
 
 RAIZ="${1:?uso: osrm_build_recortado.sh <ruta absoluta del repo>}"
@@ -16,7 +21,7 @@ docker run --rm \
     apt-get install -y -qq osmium-tool >/dev/null
     mkdir -p /data/osrm_cl
     osmium extract \
-      --polygon /data/salida/chile_simplificado.geojson \
+      --polygon /data/salida/chile_recorte.geojson \
       --set-bounds --overwrite \
       -o /data/osrm_cl/chile-recortado.osm.pbf \
       /data/crudo/chile-latest.osm.pbf

@@ -3,6 +3,9 @@
 Mismo metodo y mismas columnas que `distancias_comuna_comuna`, con `id_punto` en
 lugar de `cod_destino`. Se separa de la etapa 04 porque depende de la capa de
 puntos (etapa 03), que puede regenerarse sin rehacer la matriz comunal.
+
+`km_ruta` es la ruta NACIONAL, igual que en la matriz comunal: para un modelo de
+costos chileno, cruzar a Argentina es otra operacion y va en su propia columna.
 """
 from __future__ import annotations
 
@@ -80,10 +83,10 @@ def main():
     d = list(zip(pts["lon"], pts["lat"]))
     print(f"comunas: {len(o)}   puntos: {len(d)}   pares: {len(o)*len(d):,}")
 
-    print("\n== grafo Chile completo ==")
-    dist, dur = tabla(OSRM, o, d)
-    print("\n== grafo recortado a Chile ==")
-    dist_cl, _ = tabla(OSRM_CL, o, d)
+    print("\n== grafo con Argentina ==")
+    dist_int, _ = tabla(OSRM, o, d)
+    print("\n== grafo recortado al territorio nacional ==")
+    dist, dur = tabla(OSRM_CL, o, d)
 
     lon_o = np.array([p[0] for p in o])
     lat_o = np.array([p[1] for p in o])
@@ -108,17 +111,21 @@ def main():
             "km_geodesica": km_geo.ravel().round(3),
             "factor_rodeo": rodeo.ravel().round(4),
             "ruta_existe": np.isfinite(dist).ravel(),
-            "solo_via_argentina": (np.isfinite(dist) & ~np.isfinite(dist_cl)).ravel(),
+            "km_via_argentina": (dist_int / 1000).ravel().round(3),
+            "solo_via_argentina": (np.isfinite(dist_int) & ~np.isfinite(dist)).ravel(),
+            "dif_km_via_argentina": ((dist - dist_int) / 1000).ravel().round(3),
         }
     )
     df.to_parquet(f"{SALIDA}/distancias_comuna_punto.parquet", index=False)
 
     print(f"\nfilas: {len(df):,}")
-    print(f"sin ruta:            {(~df['ruta_existe']).mean():.1%}")
+    print(f"sin ruta nacional:   {(~df['ruta_existe']).mean():.1%}")
     print(f"solo_via_argentina:  {df['solo_via_argentina'].mean():.1%}")
-    nac = df[df["ruta_existe"] & ~df["solo_via_argentina"] & (df["km_geodesica"] > 1)]
+    nac = df[df["ruta_existe"] & (df["km_geodesica"] > 1)]
     print(f"\nfactor de rodeo mediano: {nac['factor_rodeo'].median():.3f}")
     print(f"km_ruta mediano:         {nac['km_ruta'].median():.1f}")
+    a = nac["dif_km_via_argentina"]
+    print(f"pares donde cruzar acorta mas de 1 km: {(a > 1).sum():,}")
 
 
 if __name__ == "__main__":

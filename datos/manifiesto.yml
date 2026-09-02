@@ -37,6 +37,31 @@ fuentes:
     atribucion: (c) colaboradores de OpenStreetMap
     licencia: ODbL 1.0
 
+  - nombre: osm_argentina
+    descripcion: >
+      Extracto de OpenStreetMap para Argentina. Necesario porque el extracto de Chile
+      NO contiene caminos argentinos: sin este archivo la columna solo_via_argentina
+      no puede calcularse, y durante un tiempo el dataset publico una columna que
+      decia "solo se llega por Argentina" sobre un grafo donde Argentina no existia.
+    url: https://download.geofabrik.de/south-america/argentina-latest.osm.pbf
+    archivo: argentina-latest.osm.pbf
+    md5_url: https://download.geofabrik.de/south-america/argentina-latest.osm.pbf.md5
+    md5: 6caa97d2c9432d2d952e268d8e13dcd5   # corte del 2026-09-01
+    atribucion: (c) colaboradores de OpenStreetMap
+    licencia: ODbL 1.0
+
+  - nombre: paises
+    descripcion: >
+      Poligonos de paises de Natural Earth 1:10m. Se usan para construir el poligono
+      de recorte: Chile dilatado hacia el mar menos la tierra de Argentina, Bolivia y
+      Peru. Recortar con la union de comunas (tierra) eliminaba las rutas de barcaza.
+    url: https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip
+    archivo: ne_paises.zip
+    descomprimir_en: ne_paises
+    md5: 0bc33f3e6f9ab457917430e57f6122a9
+    atribucion: Natural Earth
+    licencia: dominio publico
+
   - nombre: poblacion
     descripcion: Grilla de poblacion 2020, version constrained (solo donde hay edificacion)
     url: https://data.worldpop.org/GIS/Population/Global_2000_2020_Constrained/2020/BSGM/CHL/chl_ppp_2020_UNadj_constrained.tif

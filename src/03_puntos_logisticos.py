@@ -17,7 +17,9 @@ import requests
 from pyproj import Geod
 
 GEOD = Geod(ellps="WGS84")
-OSRM = os.environ.get("OSRM_URL", "http://osrm:5000")
+# Se usa el grafo NACIONAL: este es un dataset chileno, y una comuna fronteriza
+# no debe enganchar ni rutear por un camino argentino.
+OSRM = os.environ.get("OSRM_CL_URL", "http://osrm_cl:5000")
 SALIDA = "datos/salida"
 CRUDO = "datos/crudo/puntos_osm.geojson"
 

@@ -66,14 +66,19 @@ def main():
             km = float(t["km_ruta"].iloc[0])
             check("Santiago a Valparaiso entre 100 y 145 km", 100 < km < 145, f"{km:.1f} km")
 
-        # Magallanes contra la zona central: solo se llega saliendo del pais
-        mag = reales.loc[reales["cod_region"] == 12, "cod_comuna"]
-        cen = reales.loc[reales["cod_region"].isin([13, 5, 6]), "cod_comuna"]
-        sub = d[d["cod_origen"].isin(cen) & d["cod_destino"].isin(mag)]
-        if len(sub):
-            check("Magallanes desde la zona central: solo_via_argentina",
-                  sub["solo_via_argentina"].mean() > 0.95,
-                  f"{sub['solo_via_argentina'].mean():.1%} de {len(sub)} pares")
+        # Chiloe y la Carretera Austral se alcanzan por transbordador chileno: NO
+        # pueden salir marcados como accesibles solo por Argentina. El invariante
+        # anterior afirmaba lo contrario para Magallanes y pasaba en verde, porque
+        # codificaba el supuesto en vez de comprobarlo: el recorte con el poligono
+        # terrestre habia eliminado las rutas de barcaza.
+        for cod, nombre in [(10201, "Ancud"), (10202, "Castro"), (10401, "Chaiten"),
+                            (11101, "Coyhaique")]:
+            sub = d[(d["cod_origen"] == 10101) & (d["cod_destino"] == cod)]
+            if len(sub):
+                r = sub.iloc[0]
+                check(f"Puerto Montt a {nombre}: hay ruta nacional, no solo por Argentina",
+                      bool(r["ruta_existe"]) and not bool(r["solo_via_argentina"]),
+                      f"km {r['km_ruta']:.1f}, solo_via_argentina={bool(r['solo_via_argentina'])}")
 
     p = f"{SALIDA}/intracomuna.parquet"
     if os.path.exists(p):

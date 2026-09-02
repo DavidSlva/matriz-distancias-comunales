@@ -1,16 +1,17 @@
 services:
-  # Ruteador sobre Chile completo. Incluye la red vial argentina fronteriza,
-  # asi que rutea Punta Arenas desde el norte pasando por Argentina.
+  # Ruteador internacional: Chile mas Argentina. El extracto de Chile por si solo NO
+  # contiene caminos argentinos, asi que sin este grafo la columna `solo_via_argentina`
+  # no puede calcularse.
   osrm:
     image: osrm/osrm-backend
-    command: osrm-routed --algorithm mld --max-table-size 10000 /data/chile-latest.osrm
+    command: osrm-routed --algorithm mld --max-table-size 10000 /data/cono-sur.osrm
     volumes:
-      - ./datos/osrm:/data
+      - ./datos/osrm_int:/data
     ports:
       - "5000:5000"
 
-  # Mismo ruteador sobre el extracto recortado al poligono nacional. Un par con
-  # ruta en `osrm` y sin ruta aca es, por construccion, `solo_via_argentina`.
+  # Ruteador nacional: el extracto recortado al territorio de Chile, aguas incluidas.
+  # Un par con ruta en `osrm` y sin ruta aca es, por construccion, `solo_via_argentina`.
   osrm_cl:
     image: osrm/osrm-backend
     command: osrm-routed --algorithm mld --max-table-size 10000 /data/chile-recortado.osrm

@@ -3,8 +3,7 @@
 Produce `datos/salida/comunas.parquet` con las cuatro definiciones de centroide,
 area geodesica, poblacion y calidad de enganche a la red vial.
 
-Escribe tambien `datos/salida/chile.geojson`, el poligono nacional disuelto, que
-la etapa de grafos usa para recortar el extracto de OpenStreetMap.
+El poligono de recorte lo construye `src/02b_poligono_recorte.py`, no esta etapa.
 """
 from __future__ import annotations
 
@@ -23,7 +22,9 @@ from shapely.geometry import Point, mapping
 from shapely.ops import transform as shp_transform
 
 GEOD = Geod(ellps="WGS84")
-OSRM = os.environ.get("OSRM_URL", "http://osrm:5000")
+# Se usa el grafo NACIONAL: este es un dataset chileno, y una comuna fronteriza
+# no debe enganchar ni rutear por un camino argentino.
+OSRM = os.environ.get("OSRM_CL_URL", "http://osrm_cl:5000")
 RUTA_POB = "datos/crudo/chl_pop_2020.tif"
 SALIDA = "datos/salida"
 
@@ -77,18 +78,6 @@ def main():
     com["geometry"] = com.geometry.make_valid()
     areas = gpd.read_file("datos/crudo/areas_pobladas/Areas_Pobladas.shp").to_crs(4326)
     areas["geometry"] = areas.geometry.make_valid()
-
-    # poligono nacional disuelto, insumo del recorte de OSM
-    chile = com.geometry.union_all(grid_size=1e-7)
-    with open(f"{SALIDA}/chile.geojson", "w", encoding="utf-8") as fh:
-        json.dump({"type": "Feature", "properties": {}, "geometry": mapping(chile)}, fh)
-    # `osmium extract -p` se arrastra con poligonos de miles de anillos. Para el unico
-    # uso que le damos (dejar fuera la red vial argentina, que esta a cientos de km) una
-    # tolerancia de ~500 m es inocua y hace el recorte tratable.
-    simple = chile.simplify(0.005).buffer(0)
-    with open(f"{SALIDA}/chile_simplificado.geojson", "w", encoding="utf-8") as fh:
-        json.dump({"type": "Feature", "properties": {}, "geometry": mapping(simple)}, fh)
-    print(f"chile.geojson ({chile.geom_type}) y chile_simplificado.geojson escritos")
 
     filas = []
     with rasterio.open(RUTA_POB) as src:

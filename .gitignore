@@ -1,8 +1,8 @@
 # Insumos crudos: se reconstruyen con `make descargar` desde datos/manifiesto.yml
 datos/crudo/
 
-# Grafos OSRM: ~3,6 GB entre los dos, se reconstruyen con `make grafos`
-datos/osrm/
+# Grafos OSRM: ~7,4 GB entre los dos, se reconstruyen con `make grafos`
+datos/osrm_int/
 datos/osrm_cl/
 
 # Salidas: se publican como GitHub Release, no en el arbol
