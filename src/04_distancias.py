@@ -10,8 +10,12 @@ penaliza el transbordador a 5 km/h, en el grafo internacional el ruteador prefie
 rodear por camino argentino antes que navegar, aunque sean mas kilometros. Puerto Montt
 a Punta Arenas da 2.100,8 km por Chile y 2.172,8 permitiendo Argentina: la internacional
 es mas LARGA en distancia porque es mas rapida en tiempo. Por eso la columna se llama
-`dif_km_via_argentina` y no "ahorro": puede ser negativa, y su signo depende de una
-velocidad de ferry que sabemos mal medida.
+`dif_km_via_argentina` y no "ahorro": puede ser negativa.
+
+El tiempo de las travesias se corrige despues de rutear. Donde OSM trae `duration` se
+respeta ese valor; donde no lo trae, OSRM cae a 5 km/h y se reemplaza por un modelo
+ajustado sobre los cruces que si estan tagueados. La columna `minutos_fuente` dice cual
+de los dos casos aplica a cada par.
 
 Publica ademas `km_transbordo`: cuantos kilometros de la ruta nacional van en
 transbordador. Para carga eso no es un detalle del trazado sino otra operacion, con
@@ -28,6 +32,7 @@ from collections import deque
 import numpy as np
 import pandas as pd
 import requests
+import travesias
 from pyproj import Geod
 
 GEOD = Geod(ellps="WGS84")
@@ -54,7 +59,15 @@ RADIO_M = 30000
 # Solo puede haber navegacion si algun extremo esta en una region con transbordadores.
 # Entre dos comunas del norte no hay barcaza posible, y pedir la geometria de esos
 # pares seria gastar decenas de miles de consultas para obtener ceros.
-REGIONES_CON_BARCAZA = {10, 11, 12, 14}
+#
+# La lista NO es a ojo: sale de ubicar los 60 cruces de vehiculos del extracto de OSM.
+# Ademas del arco austral hay balsas fluviales en el Maule (rio Maule), Nuble (rio
+# Itata) y La Araucania (Pocoyan, Caracoles). Miden entre 70 y 340 metros.
+#
+# Incluirlas cuesta unos 15 minutos mas de ruteo y corrige en la direccion CONTRARIA al
+# resto: en un cruce de 70 m los 5 km/h de OSRM dan 50 segundos, cuando cargar y
+# descargar una balsa toma varios minutos. Ahi el ruteador no sobreestima, subestima.
+REGIONES_CON_BARCAZA = {7, 8, 9, 10, 11, 12, 14, 16}
 
 
 def tabla(base, puntos, bloque=170):
@@ -106,10 +119,12 @@ def tabla(base, puntos, bloque=170):
 
 
 def transbordo_km(base, puntos, pares):
-    """Kilometros de cada ruta que van en transbordador.
+    """Kilometros navegados y correccion de tiempo de cada ruta.
 
     Exige la geometria por par, que el servicio `table` no entrega, asi que se
     consulta ruta por ruta. Por eso la lista de pares llega ya filtrada.
+
+    Devuelve {(i, j): (km, segundos_de_correccion, se_modelo)}.
     """
     out = {}
     for k, (i, j) in enumerate(pares, 1):
@@ -122,10 +137,9 @@ def transbordo_km(base, puntos, pares):
                 timeout=120,
             ).json()
             if r.get("code") == "Ok":
-                out[(i, j)] = sum(
-                    p["distance"] for p in r["routes"][0]["legs"][0]["steps"]
-                    if p.get("mode") == "ferry"
-                ) / 1000
+                out[(i, j)] = travesias.corrige(
+                    r["routes"][0]["legs"][0]["steps"]
+                )
         except requests.RequestException:
             pass
         if k % 5000 == 0:
@@ -196,9 +210,20 @@ def main():
     print(f"\npares que podrian usar transbordador: {len(candidatos):,}")
     ferry = transbordo_km(OSRM_CL, puntos, candidatos)
     km_ferry = np.zeros((n, n))
-    for (i, j), v in ferry.items():
-        km_ferry[i, j] = v
+    corr_s = np.zeros((n, n))
+    modelado = np.zeros((n, n), dtype=bool)
+    for (i, j), (km, seg, mod) in ferry.items():
+        km_ferry[i, j] = km
+        corr_s[i, j] = seg
+        modelado[i, j] = mod
     km_ferry[~existe_nac] = np.nan
+
+    # El tiempo del transbordo se corrige DESPUES de rutear, no dentro del grafo. Meter
+    # la duracion en el .pbf obligaria a reconstruir 7,4 GB de grafo por un cambio en 22
+    # vias, y ademas dejaria el supuesto escondido dentro del ruteador. Asi queda a la
+    # vista y cada par declara de donde salio su minuto.
+    t_nac = t_nac + corr_s
+    print(f"pares con tiempo de travesia modelado: {modelado.sum():,}")
 
     O, D = np.meshgrid(cods, cods, indexing="ij")
     km_int = d_int / 1000
@@ -214,6 +239,7 @@ def main():
             "cod_destino": D.ravel(),
             "km_ruta": km_nac.ravel().round(3),
             "minutos": (t_nac / 60).ravel().round(2),
+            "minutos_fuente": np.where(modelado, "modelo", "osm").ravel(),
             "km_transbordo": km_ferry.ravel().round(3),
             "km_geodesica": km_geo.ravel().round(3),
             "factor_rodeo": rodeo.ravel().round(4),
@@ -245,6 +271,14 @@ def main():
     if len(t):
         print("\nkm_transbordo en los pares que navegan:")
         print(t.describe(percentiles=[0.5, 0.9]).round(1).to_string())
+
+    mod = con["minutos_fuente"] == "modelo"
+    print(f"\nminutos_fuente = 'modelo': {mod.sum():,} pares "
+          f"({mod.mean():.1%} de los que tienen ruta)")
+    if mod.any():
+        nav = con["km_transbordo"] > 0
+        print(f"  de los {nav.sum():,} pares que navegan, "
+              f"{(mod & nav).sum():,} llevan al menos una travesia sin dato en OSM")
 
     a = con["dif_km_via_argentina"]
     print(f"\npares donde ir por Argentina acorta mas de 1 km: {(a > 1).sum():,}")

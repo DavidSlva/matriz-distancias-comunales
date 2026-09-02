@@ -41,6 +41,7 @@ ensamblar:
 	$(GEO) src/06_ensamblar.py
 
 validar:
+	$(GEO) src/travesias_test.py
 	$(GEO) src/validar.py
 
 ## Los enlaces institucionales chilenos se mueven. Ya se publico un 404 una vez.

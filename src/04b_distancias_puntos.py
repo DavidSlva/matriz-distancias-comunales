@@ -6,6 +6,10 @@ puntos (etapa 03), que puede regenerarse sin rehacer la matriz comunal.
 
 `km_ruta` es la ruta NACIONAL, igual que en la matriz comunal: para un modelo de
 costos chileno, cruzar a Argentina es otra operacion y va en su propia columna.
+
+El tiempo de las travesias se corrige con el mismo criterio que la etapa 04, en
+`travesias.py`. Sin eso los dos archivos publicarian `minutos` con semantica distinta,
+que es peor que publicarlos mal en los dos.
 """
 from __future__ import annotations
 
@@ -14,12 +18,18 @@ import os
 import numpy as np
 import pandas as pd
 import requests
+import travesias
 from pyproj import Geod
 
 GEOD = Geod(ellps="WGS84")
 OSRM = os.environ.get("OSRM_URL", "http://osrm:5000")
 OSRM_CL = os.environ.get("OSRM_CL_URL", "http://osrm_cl:5000")
 SALIDA = "datos/salida"
+
+# Mismas regiones que la etapa 04, y por la misma razon: son las unicas donde hay
+# transbordadores, asi que pedir la geometria del resto seria gastar consultas para
+# obtener ceros. Ver el comentario extendido en 04_distancias.py.
+REGIONES_CON_BARCAZA = {7, 8, 9, 10, 11, 12, 14, 16}
 
 # Radio maximo de enganche a la red vial, en metros. Sin tope OSRM engancha
 # arbitrariamente lejos, prefiriendo la componente conexa grande antes que devolver
@@ -74,6 +84,31 @@ def tabla(base, origenes, destinos, bloque=120):
     return dist, dur
 
 
+def transbordo(base, origenes, destinos, pares):
+    """Kilometros navegados y correccion de tiempo de cada par comuna-punto.
+
+    El servicio `table` no entrega geometria, asi que hay que pedir ruta por ruta.
+    Devuelve {(i, j): (km, segundos_de_correccion, se_modelo)}.
+    """
+    out = {}
+    for k, (i, j) in enumerate(pares, 1):
+        a, b = origenes[i], destinos[j]
+        try:
+            r = requests.get(
+                f"{base}/route/v1/driving/"
+                f"{a[0]:.6f},{a[1]:.6f};{b[0]:.6f},{b[1]:.6f}",
+                params={"overview": "false", "steps": "true"},
+                timeout=120,
+            ).json()
+            if r.get("code") == "Ok":
+                out[(i, j)] = travesias.corrige(r["routes"][0]["legs"][0]["steps"])
+        except requests.RequestException:
+            pass
+        if k % 5000 == 0:
+            print(f"    transbordo {k:,}/{len(pares):,}")
+    return out
+
+
 def main():
     com = pd.read_parquet(f"{SALIDA}/comunas.parquet")
     com = com[com["es_comuna"]].sort_values("cod_comuna").reset_index(drop=True)
@@ -87,6 +122,31 @@ def main():
     dist_int, _ = tabla(OSRM, o, d)
     print("\n== grafo recortado al territorio nacional ==")
     dist, dur = tabla(OSRM_CL, o, d)
+
+    # Igual que en la etapa 04: el tiempo de las travesias se corrige despues de
+    # rutear, y cada par declara si su minuto salio de OSM o del modelo.
+    reg_o = (com["cod_comuna"].to_numpy() // 1000)
+    reg_d = (pts["cod_comuna"].to_numpy() // 1000)
+    existe = np.isfinite(dist)
+    pares = [
+        (i, j)
+        for i in range(len(o))
+        for j in range(len(d))
+        if existe[i, j]
+        and (reg_o[i] in REGIONES_CON_BARCAZA or reg_d[j] in REGIONES_CON_BARCAZA)
+    ]
+    print(f"\npares que podrian usar transbordador: {len(pares):,}")
+    ferry = transbordo(OSRM_CL, o, d, pares)
+    km_ferry = np.zeros_like(dist)
+    corr_s = np.zeros_like(dist)
+    modelado = np.zeros(dist.shape, dtype=bool)
+    for (i, j), (km_t, seg, mod) in ferry.items():
+        km_ferry[i, j] = km_t
+        corr_s[i, j] = seg
+        modelado[i, j] = mod
+    km_ferry[~existe] = np.nan
+    dur = dur + corr_s
+    print(f"pares con tiempo de travesia modelado: {modelado.sum():,}")
 
     lon_o = np.array([p[0] for p in o])
     lat_o = np.array([p[1] for p in o])
@@ -108,6 +168,8 @@ def main():
             "id_punto": P.ravel(),
             "km_ruta": km.ravel().round(3),
             "minutos": (dur / 60).ravel().round(2),
+            "minutos_fuente": np.where(modelado, "modelo", "osm").ravel(),
+            "km_transbordo": km_ferry.ravel().round(3),
             "km_geodesica": km_geo.ravel().round(3),
             "factor_rodeo": rodeo.ravel().round(4),
             "ruta_existe": np.isfinite(dist).ravel(),
@@ -121,6 +183,11 @@ def main():
     print(f"\nfilas: {len(df):,}")
     print(f"sin ruta nacional:   {(~df['ruta_existe']).mean():.1%}")
     print(f"solo_via_argentina:  {df['solo_via_argentina'].mean():.1%}")
+    con = df[df["ruta_existe"]]
+    print(f"con transbordo (>0 km): {(con['km_transbordo'] > 0).sum():,} "
+          f"({(con['km_transbordo'] > 0).mean():.1%} de los que tienen ruta)")
+    mod = con["minutos_fuente"] == "modelo"
+    print(f"minutos_fuente = 'modelo': {mod.sum():,} ({mod.mean():.1%})")
     nac = df[df["ruta_existe"] & (df["km_geodesica"] > 1)]
     print(f"\nfactor de rodeo mediano: {nac['factor_rodeo'].median():.3f}")
     print(f"km_ruta mediano:         {nac['km_ruta'].median():.1f}")

@@ -123,6 +123,7 @@ Cada una en Parquet y CSV, en `datos/salida/`.
 | `cod_destino` / `id_punto` | destino |
 | `km_ruta` | distancia de la ruta **nacional**, sin salir de Chile |
 | `minutos` | tiempo de viaje a **flujo libre**. No modela trafico |
+| `minutos_fuente` | `osm` cuando el tiempo de las travesias viene de OpenStreetMap, `modelo` cuando alguna no traia el dato y se calculo |
 | `km_transbordo` | cuantos de esos kilometros van en transbordador |
 | `km_geodesica` | linea recta sobre el elipsoide entre los mismos dos puntos |
 | `factor_rodeo` | `km_ruta / km_geodesica`. Mediana nacional 1,260 |
@@ -158,9 +159,12 @@ O `make all`.
   una linea recta: la mediana de sinuosidad de esos trazados es 1,09 y llega a 2,28.
 - **Los minutos son de flujo libre**: el tiempo de camino vacio, sin congestion ni colas.
   El real siempre es mayor.
-- **En rutas con transbordo el tiempo no es utilizable.** Solo 64 de las 844 vias de
-  transbordador de Chile traen su duracion en OpenStreetMap; el resto se calcula a 5 km/h.
-  Los kilometros del transbordo si son correctos.
+- **El tiempo de las travesias es en parte calculado, y se declara cual.** De los 60
+  cruces de vehiculos de Chile, 35 traen su duracion en OpenStreetMap y esos se respetan
+  tal cual. Para el resto, el ruteador cae a 5 km/h, que no es la velocidad de ninguna
+  barcaza, y se reemplaza por `horas = 0,0997 + 0,0530 x km`: 6 minutos de maniobra mas
+  18,9 km/h de crucero. La columna `minutos_fuente` dice a cual de los dos casos
+  corresponde cada fila.
 - **(A) modela un caso, no todos.** Origen y destino se sortean de la poblacion, o sea
   un viaje entre dos residentes. Un despacho a domicilio sale de un local, no de un
   hogar, y su ultimo kilometro es **menor** que este `a_p50`.

@@ -60,6 +60,28 @@ def main():
               1.1 < con_ruta["factor_rodeo"].median() < 1.8,
               f"{con_ruta['factor_rodeo'].median():.3f}")
 
+        # El tiempo de las travesias: `minutos_fuente` dice si el minuto salio de
+        # OpenStreetMap o del modelo ajustado. Es la columna que impide que un valor
+        # calculado se lea como observado.
+        check("minutos_fuente solo toma 'osm' o 'modelo'",
+              set(d["minutos_fuente"].unique()) <= {"osm", "modelo"},
+              f"valores: {sorted(set(d['minutos_fuente'].unique()))}")
+        # Implicacion logica: no se puede modelar el tiempo de una travesia que no
+        # existe. Si esto se rompe, la correccion se esta aplicando donde no hay ferry.
+        mod = d["minutos_fuente"] == "modelo"
+        check("todo minuto modelado corresponde a una ruta que navega",
+              bool((d.loc[mod, "km_transbordo"].fillna(0) > 0).all()),
+              f"{int((d.loc[mod, 'km_transbordo'].fillna(0) <= 0).sum())} sin transbordo")
+
+        # Testigo del cruce sin dato en OSM: Valdivia (14101) a Corral (14102) cruza
+        # Niebla-Corral, 3,99 km sin `duration`. A los 5 km/h de OSRM el par daba
+        # 68,9 minutos; la travesia real son unos 19.
+        t = d[(d["cod_origen"] == 14101) & (d["cod_destino"] == 14102)]
+        if len(t) and bool(t["ruta_existe"].iloc[0]):
+            mi = float(t["minutos"].iloc[0])
+            check("Valdivia a Corral bajo 60 min (la barcaza no va a 5 km/h)",
+                  mi < 60, f"{mi:.1f} min, fuente {t['minutos_fuente'].iloc[0]}")
+
         # testigo con distancia conocida: Santiago (13101) a Valparaiso (5101)
         t = d[(d["cod_origen"] == 13101) & (d["cod_destino"] == 5101)]
         if len(t):
