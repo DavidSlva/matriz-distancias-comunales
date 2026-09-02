@@ -146,8 +146,11 @@ O `make all`.
 - **Solo red vial.** No modela transporte maritimo ni ferroviario. El perfil de ruteo si
   incluye transbordos, que en Chile son parte real del transporte carretero de carga
   (Chiloe, Carretera Austral).
-- **Los minutos son de flujo libre.** Sin trafico, sin estacionalidad, sin restricciones
-  vehiculares.
+- **Los minutos son de flujo libre**: el tiempo de camino vacio, sin congestion ni colas.
+  El real siempre es mayor.
+- **En rutas con transbordo el tiempo no es utilizable.** Solo 64 de las 844 vias de
+  transbordador de Chile traen su duracion en OpenStreetMap; el resto se calcula a 5 km/h.
+  Los kilometros del transbordo si son correctos.
 - **(A) modela un caso, no todos.** Origen y destino se sortean de la poblacion, o sea
   un viaje entre dos residentes. Un despacho a domicilio sale de un local, no de un
   hogar, y su ultimo kilometro es **menor** que este `a_p50`.

@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir \
       pandas==2.3.3 \
       pyarrow==21.0.0 \
       requests==2.32.5 \
-      pyyaml==6.0.2
+      pyyaml==6.0.2 \
+      openpyxl==3.1.5 \
+      pyxlsb==1.0.10
 
 WORKDIR /work
